@@ -13,19 +13,21 @@ INSERT INTO transactions (user_id, product_id, transaction_date) VALUES (2, 105,
 INSERT INTO transactions (user_id, product_id, transaction_date) VALUES (4, 101, '2020-2-16');
 INSERT INTO transactions (user_id, product_id, transaction_date) VALUES (3, 105, '2020-2-15');
 
-SELECT * FROM transactions;
+#SELECT * FROM transactions;
 
-WITH user_transactions AS (
-  SELECT user_id, transaction_date, 
-         count(transaction_date) over (partition by user_id) as transaction_count 
+WITH super_users AS (
+  SELECT user_id, product_id, transaction_date, 
+         ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY product_id DESC, transaction_date DESC) AS row_num,
+         count(*) over (partition by user_id) as transaction_count 
   FROM transactions
-), super_users AS (
-  SELECT user_id, min(transaction_date) as super_user_date 
-  FROM user_transactions 
-  WHERE transaction_count >= 2 
+), 
+user_dates AS (
+  SELECT user_id, max(transaction_date) as transaction_date
+  FROM super_users 
+  WHERE row_num=1 and transaction_count >= 2 
   GROUP BY user_id
 )
-SELECT user_id, COALESCE(super_user_date, 'Not a super user') as super_user_date 
+SELECT u.user_id, COALESCE(user_dates.transaction_date, 'Null') as super_user_date 
 FROM (SELECT DISTINCT user_id FROM transactions) u 
-LEFT JOIN super_users su ON u.user_id = su.user_id 
-ORDER BY super_user_date
+LEFT JOIN user_dates ON u.user_id = user_dates.user_id 
+ORDER BY u.user_id;
